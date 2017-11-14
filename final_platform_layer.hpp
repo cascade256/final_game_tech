@@ -3790,4 +3790,105 @@ int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE prevInstance, LPSTR cmdLine,
 
 #endif // defined(FPL_PLATFORM_WINDOWS)
 
+#if defined(FPL_PLATFORM_LINUX)
+
+namespace fpl {
+	namespace console {
+		fpl_api void ConsoleOut(const char *text) {
+			FPL_ASSERT(text != nullptr);
+			fprintf(stdout, "%s", text);
+		}
+		fpl_api void ConsoleFormatOut(const char *format, ...) {
+			FPL_ASSERT(format != nullptr);
+			va_list vaList;
+			va_start(vaList, format);
+			vfprintf(stdout, format, vaList);
+			va_end(vaList);
+		}
+		fpl_api void ConsoleError(const char *text) {
+			FPL_ASSERT(text != nullptr);
+			fprintf(stderr, "%s", text);
+		}
+		fpl_api void ConsoleFormatError(const char *format, ...) {
+			FPL_ASSERT(format != nullptr);
+			va_list vaList;
+			va_start(vaList, format);
+			vfprintf(stderr, format, vaList);
+			va_end(vaList);
+		}
+	}
+
+	namespace threading {}
+	namespace memory {}
+	namespace files {}
+	namespace paths {}
+	namespace timings {
+		fpl_api double GetHighResolutionTimeInSeconds() {
+			timespec time;
+			clock_gettime(CLOCK_MONOTONIC, &time);
+			double result = time.tv_sec + time.tv_nsec / 1000000000.0;
+			return(result);
+		}
+	}
+	namespace strings {}
+	namespace library {}
+
+#	if FPL_ENABLE_WINDOW
+	namespace window {
+#	if FPL_ENABLE_OPENGL
+		fpl_api void WindowFlip() {
+
+		}
+#	else
+		fpl_api void WindowFlip() {
+		}
+#	endif // FPL_ENABLE_OPENGL 
+
+
+
+		fpl_api bool WindowUpdate() {
+
+		}
+
+		fpl_api bool IsWindowRunning() {
+			
+		}
+
+		fpl_api bool PollWindowEvent(Event &ev) {
+			bool result = false;
+			EventQueue_Internal *eventQueue = globalEventQueue_Internal;
+			FPL_ASSERT(eventQueue != nullptr);
+			if (eventQueue->pushCount > 0 && (eventQueue->pollIndex < eventQueue->pushCount)) {
+				uint32_t eventIndex = atomics::AtomicAddU32(&eventQueue->pollIndex, 1);
+				ev = eventQueue->events[eventIndex];
+				result = true;
+			}
+			else if (globalEventQueue_Internal->pushCount > 0) {
+				atomics::AtomicExchangeU32(&eventQueue->pollIndex, 0);
+				atomics::AtomicExchangeU32(&eventQueue->pushCount, 0);
+			}
+			return result;
+		}
+
+		fpl_api WindowSize GetWindowArea() {
+
+		}
+
+		fpl_api void SetWindowCursorEnabled(const bool value) {
+
+		}
+
+	}
+
+	fpl_api bool InitPlatform(const InitFlags, const InitSettings & initSettings) {
+
+	}
+
+	fpl_api void ReleasePlatform() {
+
+	}
+}
+
+#endif // defined(FPL_PLATFORM_LINUX)
+
 #endif // defined(FPL_IMPLEMENTATION) && !defined(FPL_IMPLEMENTED)
