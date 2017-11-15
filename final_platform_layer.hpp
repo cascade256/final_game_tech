@@ -456,7 +456,8 @@ SOFTWARE.
 // Types
 //
 #include <stdint.h>
-
+#include <cstddef>
+#include <atomic>
 //
 // API
 //
@@ -1386,7 +1387,7 @@ namespace fpl {
 		if (state != nullptr) {
 			FPL_ASSERT(format != nullptr);
 			char buffer[MAX_LAST_ERROR_STRING_LENGTH_INTERNAL];
-			vsprintf_s(buffer, FPL_ARRAYCOUNT(buffer), format, argList);
+			vsnprintf(buffer, FPL_ARRAYCOUNT(buffer), format, argList);
 			uint32_t messageLen = strings::GetAnsiStringLength(buffer);
 			FPL_ASSERT(state->count < MAX_ERRORSTATE_COUNT_INTERNAL);
 			size_t errorIndex = state->count++;
@@ -1429,8 +1430,8 @@ namespace fpl {
 		constexpr uint32_t MAX_EVENT_COUNT_INTERNAL = 32768;
 		struct EventQueue_Internal {
 			Event events[MAX_EVENT_COUNT_INTERNAL];
-			volatile uint32_t pollIndex;
-			volatile uint32_t pushCount;
+			std::atomic<uint32_t> pollIndex;
+			std::atomic<uint32_t> pushCount;
 		};
 		fpl_globalvar EventQueue_Internal *globalEventQueue_Internal = nullptr;
 	}
@@ -1818,9 +1819,8 @@ namespace fpl {
 			return(destBuffer);
 		}
 	}
-
 #else
-#error "Unsupported compiler for intrinsics"
+//#error "Unsupported compiler for intrinsics"
 #endif // defined(FPL_COMPILER_MSVC)
 }
 
@@ -3216,12 +3216,12 @@ namespace fpl {
 			EventQueue_Internal *eventQueue = globalEventQueue_Internal;
 			FPL_ASSERT(eventQueue != nullptr);
 			if (eventQueue->pushCount > 0 && (eventQueue->pollIndex < eventQueue->pushCount)) {
-				uint32_t eventIndex = atomics::AtomicAddU32(&eventQueue->pollIndex, 1);
+				uint32_t eventIndex = atomic_fetch_add(&eventQueue->pollIndex, (uint32_t)1);
 				ev = eventQueue->events[eventIndex];
 				result = true;
 			} else if (globalEventQueue_Internal->pushCount > 0) {
-				atomics::AtomicExchangeU32(&eventQueue->pollIndex, 0);
-				atomics::AtomicExchangeU32(&eventQueue->pushCount, 0);
+				atomic_exchange(&eventQueue->pollIndex, (uint32_t)0);
+				atomic_exchange(&eventQueue->pushCount, (uint32_t)0);
 			}
 			return result;
 		}
@@ -3791,8 +3791,19 @@ int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE prevInstance, LPSTR cmdLine,
 #endif // defined(FPL_PLATFORM_WINDOWS)
 
 #if defined(FPL_PLATFORM_LINUX)
-#include <X11/X.h>
-#include <X11/Xlib.h>
+
+#	include <time.h>
+#	include <sys/mman.h>
+#	include <alloca.h>
+#	if FPL_ENABLE_WINDOW
+#		include <X11/X.h>
+#		undef None //This prevents None from interfering with InitFlags::None
+#		include <X11/Xlib.h>
+#		if FPL_ENABLE_OPENGL
+#			include <GL/gl.h>
+#			include <GL/glx.h>
+#		endif
+#	endif // FPL_ENABLE_WINDOW
 
 namespace fpl {
 
@@ -3805,7 +3816,7 @@ namespace fpl {
 			int depth;
 			XSetWindowAttributes frame_attributes;
 			XEvent xEvent;
-			GLXContext glContext;
+
 			uint32_t lastWindowWidth;
 			uint32_t lastWindowHeight;
 		};
@@ -3820,7 +3831,7 @@ namespace fpl {
 
 	#	if FPL_ENABLE_OPENGL
 		struct LinuxOpenGLState_Internal {
-
+			GLXContext glContext;
 		};
 	#	else
 		typedef void *LinuxOpenGLState_Internal;
@@ -3862,7 +3873,32 @@ namespace fpl {
 	}
 
 	namespace threading {}
-	namespace memory {}
+	namespace memory {
+		//To unmap memory on Linux, the size of mapped memory is needed.
+		//Instead of having the library user handle the size, the size
+		//is put in in the 4 bytes right before the address returned and
+		//is read from there when unmapping.
+		fpl_api void *MemoryAllocate(const size_t size) {
+			FPL_ASSERT(size > 0);
+			void *result = mmap(0, size + 4, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+			*((size_t*)result) = size;
+			result = (char*)result + sizeof(size_t);
+			return(result);
+		}
+
+		fpl_api void MemoryFree(void *ptr) {
+			FPL_ASSERT(ptr != nullptr);
+			size_t size = *((size_t*)((char*)ptr) - sizeof(size_t));
+			munmap(ptr, size);
+		}
+
+		fpl_api void *MemoryStackAllocate(const size_t size) {
+			FPL_ASSERT(size > 0);
+			// @TODO: Is this safe not to include <malloc.h>?
+			void *result = alloca(size);
+			return(result);
+		}
+	}
 	namespace files {}
 	namespace paths {}
 	namespace timings {
@@ -3886,7 +3922,7 @@ namespace fpl {
 			XSetWindowAttributes frame_attributes;
 			frame_attributes.background_pixel = XWhitePixel(display, 0);
 
-			Window window = XCreateSimpleWindow(linuxState.window.display, XRootWindow(linuxState.window.display, 0),
+			Window window = XCreateWindow(linuxState.window.display, XRootWindow(linuxState.window.display, 0),
 															0, 0, initSettings.window.windowWidth, initSettings.window.windowHeight,
 															5, depth, InputOutput, visual, CWBackPixel, &frame_attributes);
 			XStoreName(display, window, initSettings.window.windowTitle);
@@ -3925,13 +3961,12 @@ namespace fpl {
 			EventQueue_Internal *eventQueue = globalEventQueue_Internal;
 			FPL_ASSERT(eventQueue != nullptr);
 			if (eventQueue->pushCount > 0 && (eventQueue->pollIndex < eventQueue->pushCount)) {
-				uint32_t eventIndex = atomics::AtomicAddU32(&eventQueue->pollIndex, 1);
+				uint32_t eventIndex = atomic_fetch_add(&eventQueue->pollIndex, (uint32_t)1);
 				ev = eventQueue->events[eventIndex];
 				result = true;
-			}
-			else if (globalEventQueue_Internal->pushCount > 0) {
-				atomics::AtomicExchangeU32(&eventQueue->pollIndex, 0);
-				atomics::AtomicExchangeU32(&eventQueue->pushCount, 0);
+			} else if (globalEventQueue_Internal->pushCount > 0) {
+				atomic_exchange(&eventQueue->pollIndex, (uint32_t)0);
+				atomic_exchange(&eventQueue->pushCount, (uint32_t)0);
 			}
 			return result;
 		}
@@ -3945,8 +3980,8 @@ namespace fpl {
 		}
 
 	}
-
-	fpl_api bool InitPlatform(const InitFlags, const InitSettings & initSettings) {
+#endif // FPL_ENABLE_WINDOW
+	fpl_api bool InitPlatform(const InitFlags initFlags, const InitSettings & initSettings) {
 		LinuxState_Internal &linuxState = globalLinuxState_Internal;
 		FPL_ASSERT(!linuxState.isInitialized);
 
@@ -3959,7 +3994,7 @@ namespace fpl {
 		}
 #	endif
 		if(usedInitFlags & InitFlags::Window) {
-			LinuxInitWindow_Internal(linuxState, usedInitFlags, initSettings);
+			window::LinuxInitWindow_Internal(linuxState, usedInitFlags, initSettings);
 		}
 
 #endif // FPL_ENABLE_WINDOW
