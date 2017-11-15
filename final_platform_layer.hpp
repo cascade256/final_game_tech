@@ -290,7 +290,7 @@ SOFTWARE.
 // See: https://sourceforge.net/p/predef/wiki/Architectures/
 //
 #if defined(_WIN64) || defined(__x86_64__) || defined(__aarch64__)
-#	define FPL_ARCH_X64	
+#	define FPL_ARCH_X64
 #elif defined(_WIN32) || defined(__i386__) || defined(__X86__) || defined(_X86_)
 #	define FPL_ARCH_X86
 #else
@@ -614,7 +614,7 @@ namespace fpl {
 	namespace console {
 		//! Writes the given text to the default console output
 		fpl_api void ConsoleOut(const char *text);
-		//! Writes the given formatted text to the default console output 
+		//! Writes the given formatted text to the default console output
 		fpl_api void ConsoleFormatOut(const char *format, ...);
 		//! Writes the given text to the console error output
 		fpl_api void ConsoleError(const char *text);
@@ -644,7 +644,7 @@ namespace fpl {
 			ThreadState state;
 		};
 
-		//! Create a thread and return the context for it. When autoStart is set to true, it will start immediatly. 
+		//! Create a thread and return the context for it. When autoStart is set to true, it will start immediatly.
 		fpl_api const ThreadContext &ThreadCreate(run_thread_function *runFunc, void *data, const bool autoStart = true);
 		//! Let the current thread sleep for the number of given milliseconds
 		fpl_api void ThreadSleep(const uint32_t milliseconds);
@@ -652,7 +652,7 @@ namespace fpl {
 		fpl_api bool ThreadSuspend(const ThreadContext &context);
 		//! Resume a suspended thread, so any user code will continue to run. Returns true when the thread was successfully resumed.
 		fpl_api bool ThreadResume(const ThreadContext &context);
-		//! Fully stop the given thread and release all underlying resources 
+		//! Fully stop the given thread and release all underlying resources
 		fpl_api void ThreadStop(const ThreadContext &context);
 		//! Wait until the given thread is done running.
 		fpl_api void ThreadWaitForSingle(const ThreadContext &context, const uint32_t maxMilliseconds = UINT32_MAX);
@@ -1300,7 +1300,7 @@ using namespace fpl::threading;
 #if defined(FPL_IMPLEMENTATION) && !defined(FPL_IMPLEMENTED)
 #	define FPL_IMPLEMENTED
 
-// 
+//
 // Non-Platform specific includes
 //
 #include <stdarg.h>  // va_start, va_end, va_list, va_arg
@@ -1311,7 +1311,7 @@ using namespace fpl::threading;
 //
 #if defined(FPL_COMPILER_MSVC)
 #	include <intrin.h>
-#endif 
+#endif
 
 //
 // Internal macros
@@ -1530,7 +1530,7 @@ namespace fpl {
 			FPL_ASSERT(size > 0);
 			FPL_ASSERT((alignment > 0) && !(alignment & (alignment - 1)));
 
-			// Allocate empty memory to hold a size of a pointer + the actual size + alignment padding 
+			// Allocate empty memory to hold a size of a pointer + the actual size + alignment padding
 			size_t newSize = sizeof(void *) + size + (alignment << 1);
 			void *basePtr = MemoryAllocate(newSize);
 			MemoryClear(basePtr, newSize);
@@ -3791,8 +3791,51 @@ int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE prevInstance, LPSTR cmdLine,
 #endif // defined(FPL_PLATFORM_WINDOWS)
 
 #if defined(FPL_PLATFORM_LINUX)
+#include <X11/X.h>
+#include <X11/Xlib.h>
 
 namespace fpl {
+
+	#	if FPL_ENABLE_WINDOW
+		struct LinuxWindowState_Internal {
+			Display *display;
+			Visual *visual;
+			Window root;
+			Window window;
+			int depth;
+			XSetWindowAttributes frame_attributes;
+			XEvent xEvent;
+			GLXContext glContext;
+			uint32_t lastWindowWidth;
+			uint32_t lastWindowHeight;
+		};
+
+		struct LinuxInputState_Internal {
+
+		};
+	#	else
+		typedef void *LinuxWindowState_Internal;
+		typedef void *LinuxInputState_Internal;
+	#	endif
+
+	#	if FPL_ENABLE_OPENGL
+		struct LinuxOpenGLState_Internal {
+
+		};
+	#	else
+		typedef void *LinuxOpenGLState_Internal;
+	#	endif
+
+		struct LinuxState_Internal {
+			bool isInitialized;
+			LinuxWindowState_Internal window;
+			LinuxInputState_Internal input;
+			LinuxOpenGLState_Internal opengl;
+		};
+
+		fpl_globalvar LinuxState_Internal globalLinuxState_Internal = {};
+
+
 	namespace console {
 		fpl_api void ConsoleOut(const char *text) {
 			FPL_ASSERT(text != nullptr);
@@ -3835,14 +3878,37 @@ namespace fpl {
 
 #	if FPL_ENABLE_WINDOW
 	namespace window {
+
+		fpl_internal bool LinuxInitWindow_Internal(LinuxState_Internal &linuxState, const InitFlags initFlags, const InitSettings &initSettings) {
+			Display *display = XOpenDisplay(NULL);
+			Visual *visual = DefaultVisual(display, 0);
+			int depth = DefaultDepth(display, 0);
+			XSetWindowAttributes frame_attributes;
+			frame_attributes.background_pixel = XWhitePixel(display, 0);
+
+			Window window = XCreateSimpleWindow(linuxState.window.display, XRootWindow(linuxState.window.display, 0),
+															0, 0, initSettings.window.windowWidth, initSettings.window.windowHeight,
+															5, depth, InputOutput, visual, CWBackPixel, &frame_attributes);
+			XStoreName(display, window, initSettings.window.windowTitle);
+			XSelectInput(display, window, ExposureMask | StructureNotifyMask);
+
+			XMapWindow(display, window);
+
+			linuxState.window.display = display;
+			linuxState.window.visual = visual;
+			linuxState.window.depth = depth;
+			linuxState.window.frame_attributes = frame_attributes;
+			linuxState.window.window = window;
+		}
+
 #	if FPL_ENABLE_OPENGL
 		fpl_api void WindowFlip() {
-
+				glXSwapBuffers(globalLinuxState_Internal.window.display, globalLinuxState_Internal.window.window);
 		}
 #	else
 		fpl_api void WindowFlip() {
 		}
-#	endif // FPL_ENABLE_OPENGL 
+#	endif // FPL_ENABLE_OPENGL
 
 
 
@@ -3851,7 +3917,7 @@ namespace fpl {
 		}
 
 		fpl_api bool IsWindowRunning() {
-			
+
 		}
 
 		fpl_api bool PollWindowEvent(Event &ev) {
@@ -3881,7 +3947,22 @@ namespace fpl {
 	}
 
 	fpl_api bool InitPlatform(const InitFlags, const InitSettings & initSettings) {
+		LinuxState_Internal &linuxState = globalLinuxState_Internal;
+		FPL_ASSERT(!linuxState.isInitialized);
 
+#if FPL_ENABLE_WINDOW
+
+		InitFlags usedInitFlags = initFlags;
+#	if FPL_ENABLE_OPENGL
+		if(usedInitFlags & InitFlags::VideoOpenGL) {
+			usedInitFlags |= InitFlags::Window;
+		}
+#	endif
+		if(usedInitFlags & InitFlags::Window) {
+			LinuxInitWindow_Internal(linuxState, usedInitFlags, initSettings);
+		}
+
+#endif // FPL_ENABLE_WINDOW
 	}
 
 	fpl_api void ReleasePlatform() {
