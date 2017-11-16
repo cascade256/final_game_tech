@@ -2603,7 +2603,7 @@ namespace fpl {
 			EventQueue_Internal *eventQueue = globalEventQueue_Internal;
 			FPL_ASSERT(eventQueue != nullptr);
 			if (eventQueue->pushCount < MAX_EVENT_COUNT_INTERNAL) {
-				uint32_t eventIndex = atomics::AtomicAddU32(&eventQueue->pushCount, 1);
+				uint32_t eventIndex = std::atomic_fetch_add(&eventQueue->pushCount, 1);
 				FPL_ASSERT(eventIndex < MAX_EVENT_COUNT_INTERNAL);
 				eventQueue->events[eventIndex] = event;
 			}
