@@ -348,7 +348,7 @@ SOFTWARE.
 // See: https://sourceforge.net/p/predef/wiki/Architectures/
 //
 #if defined(_WIN64) || defined(__x86_64__) || defined(__aarch64__)
-#	define FPL_ARCH_X64	
+#	define FPL_ARCH_X64
 #elif defined(_WIN32) || defined(__i386__) || defined(__X86__) || defined(_X86_)
 #	define FPL_ARCH_X86
 #else
@@ -545,6 +545,7 @@ SOFTWARE.
 // Types
 //
 #include <stdint.h>
+#include <stddef.h> // size_t
 
 // ****************************************************************************
 //
@@ -743,7 +744,7 @@ namespace fpl {
 	namespace console {
 		//! Writes the given text to the default console output
 		fpl_api void ConsoleOut(const char *text);
-		//! Writes the given formatted text to the default console output 
+		//! Writes the given formatted text to the default console output
 		fpl_api void ConsoleFormatOut(const char *format, ...);
 		//! Writes the given text to the console error output
 		fpl_api void ConsoleError(const char *text);
@@ -799,7 +800,7 @@ namespace fpl {
 			bool isValid;
 		};
 
-		//! Create a thread and return the context for it. When @autoStart is set to true, it will start immediatly. 
+		//! Create a thread and return the context for it. When @autoStart is set to true, it will start immediatly.
 		fpl_api ThreadContext &ThreadCreate(run_thread_function *runFunc, void *data, const bool autoStart = true);
 		//! Let the current thread sleep for the number of given milliseconds
 		fpl_api void ThreadSleep(const uint32_t milliseconds);
@@ -1517,7 +1518,7 @@ using namespace fpl::threading;
 #if defined(FPL_IMPLEMENTATION) && !defined(FPL_IMPLEMENTED)
 #	define FPL_IMPLEMENTED
 
-// 
+//
 // Non-Platform specific includes
 //
 #include <stdarg.h>  // va_start, va_end, va_list, va_arg
@@ -1529,7 +1530,7 @@ using namespace fpl::threading;
 //
 #if defined(FPL_COMPILER_MSVC)
 #	include <intrin.h>
-#endif 
+#endif
 
 //
 // Internal macros
@@ -1623,7 +1624,7 @@ namespace fpl {
 		if (state != nullptr) {
 			FPL_ASSERT(format != nullptr);
 			char buffer[MAX_LAST_ERROR_STRING_LENGTH_INTERNAL];
-			vsprintf_s(buffer, FPL_ARRAYCOUNT(buffer), format, argList);
+			vsnprintf(buffer, FPL_ARRAYCOUNT(buffer), format, argList);
 			uint32_t messageLen = strings::GetAnsiStringLength(buffer);
 			strings::CopyAnsiString(buffer, messageLen, state->errors[0], MAX_LAST_ERROR_STRING_LENGTH_INTERNAL);
 		#if defined(FPL_ENABLE_ERROR_IN_CONSOLE)
@@ -1660,6 +1661,162 @@ namespace fpl {
 			}
 		}
 		return(result);
+	}
+
+	namespace atomics {
+	#if defined(FPL_COMPILER_MSVC)
+		fpl_api void AtomicReadFence() {
+			_ReadBarrier();
+		}
+		fpl_api void AtomicWriteFence() {
+			_WriteBarrier();
+		}
+		fpl_api void AtomicReadWriteFence() {
+			_ReadWriteBarrier();
+		}
+		fpl_api uint32_t AtomicExchangeU32(volatile uint32_t *target, const uint32_t value) {
+			FPL_ASSERT(target != nullptr);
+			uint32_t result = _InterlockedExchange((volatile unsigned long *)target, value);
+			return (result);
+		}
+		fpl_api int32_t AtomicExchangeS32(volatile int32_t *target, const int32_t value) {
+			FPL_ASSERT(target != nullptr);
+			int32_t result = _InterlockedExchange((volatile long *)target, value);
+			return (result);
+		}
+		fpl_api uint64_t AtomicExchangeU64(volatile uint64_t *target, const uint64_t value) {
+			FPL_ASSERT(target != nullptr);
+			uint64_t result = _InterlockedExchange((volatile unsigned __int64 *)target, value);
+			return (result);
+		}
+		fpl_api int64_t AtomicExchangeS64(volatile int64_t *target, const int64_t value) {
+			FPL_ASSERT(target != nullptr);
+			int64_t result = _InterlockedExchange64((volatile long long *)target, value);
+			return (result);
+		}
+		fpl_api uint32_t AtomicAddU32(volatile uint32_t *value, const uint32_t addend) {
+			FPL_ASSERT(value != nullptr);
+			uint32_t result = _InterlockedExchangeAdd((volatile unsigned long *)value, addend);
+			return (result);
+		}
+		fpl_api int32_t AtomicAddS32(volatile int32_t *value, const int32_t addend) {
+			FPL_ASSERT(value != nullptr);
+			int32_t result = _InterlockedExchangeAdd((volatile long *)value, addend);
+			return (result);
+		}
+		fpl_api uint64_t AtomicAddU64(volatile uint64_t *value, const uint64_t addend) {
+			FPL_ASSERT(value != nullptr);
+			uint64_t result = _InterlockedExchangeAdd((volatile unsigned __int64 *)value, addend);
+			return (result);
+		}
+		fpl_api int64_t AtomicAddS64(volatile int64_t *value, const int64_t addend) {
+			FPL_ASSERT(value != nullptr);
+			int64_t result = _InterlockedExchangeAdd64((volatile long long *)value, addend);
+			return (result);
+		}
+		fpl_api uint32_t AtomicCompareAndExchangeU32(volatile uint32_t *dest, const uint32_t exchange, const uint32_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			uint32_t result = _InterlockedCompareExchange((volatile unsigned long *)dest, exchange, comparand);
+			return (result);
+		}
+		fpl_api int32_t AtomicCompareAndExchangeS32(volatile int32_t *dest, const int32_t exchange, const int32_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			int32_t result = _InterlockedCompareExchange((volatile long *)dest, exchange, comparand);
+			return (result);
+		}
+		fpl_api uint64_t AtomicAndCompareExchangeU64(volatile uint64_t *dest, const uint64_t exchange, const uint64_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			uint64_t result = _InterlockedCompareExchange((volatile unsigned __int64 *)dest, exchange, comparand);
+			return (result);
+		}
+		fpl_api int64_t AtomicCompareAndExchangeS64(volatile int64_t *dest, const int64_t exchange, const int64_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			int64_t result = _InterlockedCompareExchange64((volatile long long *)dest, exchange, comparand);
+			return (result);
+		}
+	#elif defined(FPL_COMPILER_GCC)
+		fpl_api void AtomicReadFence() {
+
+		}
+		fpl_api void AtomicWriteFence() {
+
+		}
+		fpl_api void AtomicReadWriteFence() {
+
+		}
+		fpl_api uint32_t AtomicExchangeU32(volatile uint32_t *target, const uint32_t value) {
+			FPL_ASSERT(target != nullptr);
+			//uint32_t result = _InterlockedExchange((volatile unsigned long *)target, value);
+			uint32_t result = __atomic_exchange_n(target, value, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api int32_t AtomicExchangeS32(volatile int32_t *target, const int32_t value) {
+			FPL_ASSERT(target != nullptr);
+			int32_t result = __atomic_exchange_n(target, value, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api uint64_t AtomicExchangeU64(volatile uint64_t *target, const uint64_t value) {
+			FPL_ASSERT(target != nullptr);
+			uint64_t result = __atomic_exchange_n(target, value, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api int64_t AtomicExchangeS64(volatile int64_t *target, const int64_t value) {
+			FPL_ASSERT(target != nullptr);
+			int64_t result = __atomic_exchange_n(target, value, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api uint32_t AtomicAddU32(volatile uint32_t *value, const uint32_t addend) {
+			FPL_ASSERT(value != nullptr);
+			//uint32_t result = _InterlockedExchangeAdd((volatile unsigned long *)value, addend);
+			uint32_t result = __atomic_fetch_add(value, addend, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api int32_t AtomicAddS32(volatile int32_t *value, const int32_t addend) {
+			FPL_ASSERT(value != nullptr);
+			int32_t result = __atomic_fetch_add(value, addend, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api uint64_t AtomicAddU64(volatile uint64_t *value, const uint64_t addend) {
+			FPL_ASSERT(value != nullptr);
+			uint64_t result = __atomic_fetch_add(value, addend, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api int64_t AtomicAddS64(volatile int64_t *value, const int64_t addend) {
+			FPL_ASSERT(value != nullptr);
+			int64_t result = __atomic_fetch_add(value, addend, __ATOMIC_SEQ_CST);
+			return (result);
+		}
+		fpl_api uint32_t AtomicCompareAndExchangeU32(volatile uint32_t *dest, const uint32_t exchange, const uint32_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			uint32_t originalDest = *dest;
+			uint32_t cmp = comparand;
+			__atomic_compare_exchange_n(dest, &cmp, exchange, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+			return (originalDest);
+		}
+		fpl_api int32_t AtomicCompareAndExchangeS32(volatile int32_t *dest, const int32_t exchange, const int32_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			int32_t originalDest = *dest;
+			int32_t cmp = comparand;
+			__atomic_compare_exchange_n(dest, &cmp, exchange, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+			return (originalDest);
+		}
+		fpl_api uint64_t AtomicAndCompareExchangeU64(volatile uint64_t *dest, const uint64_t exchange, const uint64_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			uint64_t originalDest = *dest;
+			uint64_t cmp = comparand;
+			__atomic_compare_exchange_n(dest, &cmp, exchange, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+			return (originalDest);
+		}
+		fpl_api int64_t AtomicCompareAndExchangeS64(volatile int64_t *dest, const int64_t exchange, const int64_t comparand) {
+			FPL_ASSERT(dest != nullptr);
+			int64_t originalDest = *dest;
+			int64_t cmp = comparand;
+			__atomic_compare_exchange_n(dest, &cmp, exchange, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+			return (originalDest);
+		}
+	#else
+	#	error "Atomics not supported for this compiler!"
+	#endif
 	}
 
 	//
@@ -1733,7 +1890,7 @@ namespace fpl {
 			FPL_ASSERT(size > 0);
 			FPL_ASSERT((alignment > 0) && !(alignment & (alignment - 1)));
 
-			// Allocate empty memory to hold a size of a pointer + the actual size + alignment padding 
+			// Allocate empty memory to hold a size of a pointer + the actual size + alignment padding
 			size_t newSize = sizeof(void *) + size + (alignment << 1);
 			void *basePtr = MemoryAllocate(newSize);
 
@@ -2213,83 +2370,6 @@ namespace fpl {
 
 	fpl_globalvar Win32ApplicationState_Internal global__Win32__AppState__Internal = {};
 	fpl_globalvar Win32State_Internal *global__Win32__State__Internal = nullptr;
-
-	// Win32 Atomics
-	namespace atomics {
-	#if defined(FPL_COMPILER_MSVC)
-		fpl_api void AtomicReadFence() {
-			_ReadBarrier();
-		}
-		fpl_api void AtomicWriteFence() {
-			_WriteBarrier();
-		}
-		fpl_api void AtomicReadWriteFence() {
-			_ReadWriteBarrier();
-		}
-		fpl_api uint32_t AtomicExchangeU32(volatile uint32_t *target, const uint32_t value) {
-			FPL_ASSERT(target != nullptr);
-			uint32_t result = _InterlockedExchange((volatile unsigned long *)target, value);
-			return (result);
-		}
-		fpl_api int32_t AtomicExchangeS32(volatile int32_t *target, const int32_t value) {
-			FPL_ASSERT(target != nullptr);
-			int32_t result = _InterlockedExchange((volatile long *)target, value);
-			return (result);
-		}
-		fpl_api uint64_t AtomicExchangeU64(volatile uint64_t *target, const uint64_t value) {
-			FPL_ASSERT(target != nullptr);
-			uint64_t result = _InterlockedExchange((volatile unsigned __int64 *)target, value);
-			return (result);
-		}
-		fpl_api int64_t AtomicExchangeS64(volatile int64_t *target, const int64_t value) {
-			FPL_ASSERT(target != nullptr);
-			int64_t result = _InterlockedExchange64((volatile long long *)target, value);
-			return (result);
-		}
-		fpl_api uint32_t AtomicAddU32(volatile uint32_t *value, const uint32_t addend) {
-			FPL_ASSERT(value != nullptr);
-			uint32_t result = _InterlockedExchangeAdd((volatile unsigned long *)value, addend);
-			return (result);
-		}
-		fpl_api int32_t AtomicAddS32(volatile int32_t *value, const int32_t addend) {
-			FPL_ASSERT(value != nullptr);
-			int32_t result = _InterlockedExchangeAdd((volatile long *)value, addend);
-			return (result);
-		}
-		fpl_api uint64_t AtomicAddU64(volatile uint64_t *value, const uint64_t addend) {
-			FPL_ASSERT(value != nullptr);
-			uint64_t result = _InterlockedExchangeAdd((volatile unsigned __int64 *)value, addend);
-			return (result);
-		}
-		fpl_api int64_t AtomicAddS64(volatile int64_t *value, const int64_t addend) {
-			FPL_ASSERT(value != nullptr);
-			int64_t result = _InterlockedExchangeAdd64((volatile long long *)value, addend);
-			return (result);
-		}
-		fpl_api uint32_t AtomicCompareAndExchangeU32(volatile uint32_t *dest, const uint32_t exchange, const uint32_t comparand) {
-			FPL_ASSERT(dest != nullptr);
-			uint32_t result = _InterlockedCompareExchange((volatile unsigned long *)dest, exchange, comparand);
-			return (result);
-		}
-		fpl_api int32_t AtomicCompareAndExchangeS32(volatile int32_t *dest, const int32_t exchange, const int32_t comparand) {
-			FPL_ASSERT(dest != nullptr);
-			int32_t result = _InterlockedCompareExchange((volatile long *)dest, exchange, comparand);
-			return (result);
-		}
-		fpl_api uint64_t AtomicAndCompareExchangeU64(volatile uint64_t *dest, const uint64_t exchange, const uint64_t comparand) {
-			FPL_ASSERT(dest != nullptr);
-			uint64_t result = _InterlockedCompareExchange((volatile unsigned __int64 *)dest, exchange, comparand);
-			return (result);
-		}
-		fpl_api int64_t AtomicCompareAndExchangeS64(volatile int64_t *dest, const int64_t exchange, const int64_t comparand) {
-			FPL_ASSERT(dest != nullptr);
-			int64_t result = _InterlockedCompareExchange64((volatile long long *)dest, exchange, comparand);
-			return (result);
-		}
-	#else
-	#	error "Win32 compiler for atomics not supported!"
-	#endif
-	}
 
 	// Win32 Hardware
 	namespace hardware {
@@ -4396,11 +4476,11 @@ int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE prevInstance, LPSTR cmdLine,
 #	include <time.h>
 #	include <sys/mman.h>
 #	include <alloca.h>
-#	if FPL_ENABLE_WINDOW
+#	if defined(FPL_ENABLE_WINDOW)
 #		include <X11/X.h>
 #		undef None //This prevents None from interfering with InitFlags::None
 #		include <X11/Xlib.h>
-#		if FPL_ENABLE_OPENGL
+#		if defined(FPL_SUPPORT_VIDEO_OPENGL)
 #			include <GL/gl.h>
 #			include <GL/glx.h>
 #		endif
@@ -4408,7 +4488,7 @@ int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE prevInstance, LPSTR cmdLine,
 
 namespace fpl {
 
-	#	if FPL_ENABLE_WINDOW
+	#	if defined(FPL_ENABLE_WINDOW)
 		struct LinuxWindowState_Internal {
 			Display *display;
 			Visual *visual;
@@ -4430,7 +4510,7 @@ namespace fpl {
 		typedef void *LinuxInputState_Internal;
 	#	endif
 
-	#	if FPL_ENABLE_OPENGL
+	#	if defined(FPL_SUPPORT_VIDEO_OPENGL)
 		struct LinuxOpenGLState_Internal {
 			GLXContext glContext;
 		};
@@ -4438,15 +4518,18 @@ namespace fpl {
 		typedef void *LinuxOpenGLState_Internal;
 	#	endif
 
-		struct LinuxState_Internal {
-			bool isInitialized;
-			LinuxWindowState_Internal window;
-			LinuxInputState_Internal input;
-			LinuxOpenGLState_Internal opengl;
-		};
+	struct LinuxState_Internal {
+		bool isInitialized;
+		InitFlags initFlags;
+		Settings initSettings;
+		Settings currentSettings;
+		VideoDriverType videoDriverType;
+		LinuxWindowState_Internal window;
+		LinuxInputState_Internal input;
+		LinuxOpenGLState_Internal opengl;
+	};
 
-		fpl_globalvar LinuxState_Internal globalLinuxState_Internal = {};
-
+	fpl_globalvar LinuxState_Internal global__Linux__State_Internal = {};
 
 	namespace console {
 		fpl_api void ConsoleOut(const char *text) {
@@ -4513,10 +4596,36 @@ namespace fpl {
 	namespace strings {}
 	namespace library {}
 
-#	if FPL_ENABLE_WINDOW
+#	if defined(FPL_ENABLE_WINDOW)
 	namespace window {
+		fpl_api void WindowFlip() {
+			FPL_ASSERT(global__Win32__State__Internal != nullptr);
+			if(global__Linux__State_Internal.videoDriverType == VideoDriverType::OpenGL) {
+				glXSwapBuffers(global__Linux__State_Internal.window.display, global__Linux__State_Internal.window.window);
+			} else if(global__Linux__State_Internal.videoDriverType == VideoDriverType::Software) {
 
-		fpl_internal bool LinuxInitWindow_Internal(LinuxState_Internal &linuxState, const InitFlags initFlags, const InitSettings &initSettings) {
+			}
+		}
+
+		constexpr uint32_t MAX_EVENT_COUNT_INTERNAL = 32768;
+		struct EventQueue_Internal {
+			Event events[MAX_EVENT_COUNT_INTERNAL];
+			volatile uint32_t pollIndex;
+			volatile uint32_t pushCount;
+		};
+		fpl_globalvar EventQueue_Internal *global__EventQueue__Internal = nullptr;
+
+		fpl_internal void PushEvent_Internal(const Event &event) {
+			EventQueue_Internal *eventQueue = global__EventQueue__Internal;
+			FPL_ASSERT(eventQueue != nullptr);
+			if (eventQueue->pushCount < MAX_EVENT_COUNT_INTERNAL) {
+				uint32_t eventIndex = atomics::AtomicAddU32(&eventQueue->pushCount, 1);
+				FPL_ASSERT(eventIndex < MAX_EVENT_COUNT_INTERNAL);
+				eventQueue->events[eventIndex] = event;
+			}
+		}
+
+		fpl_internal bool LinuxInitWindow_Internal(LinuxState_Internal &linuxState, const InitFlags initFlags, const Settings &initSettings) {
 			Display *display = XOpenDisplay(NULL);
 			Visual *visual = DefaultVisual(display, 0);
 			int depth = DefaultDepth(display, 0);
@@ -4536,17 +4645,12 @@ namespace fpl {
 			linuxState.window.depth = depth;
 			linuxState.window.frame_attributes = frame_attributes;
 			linuxState.window.window = window;
-		}
 
-#	if FPL_ENABLE_OPENGL
-		fpl_api void WindowFlip() {
-				glXSwapBuffers(globalLinuxState_Internal.window.display, globalLinuxState_Internal.window.window);
-		}
-#	else
-		fpl_api void WindowFlip() {
-		}
-#	endif // FPL_ENABLE_OPENGL
+			size_t eventQueueMemorySize = sizeof(EventQueue_Internal);
+			void *eventQueueMemory = memory::MemoryAlignedAllocate(eventQueueMemorySize, 16);
 
+			global__EventQueue__Internal = (EventQueue_Internal*)eventQueueMemory;
+		}
 
 
 		fpl_api bool WindowUpdate() {
@@ -4559,17 +4663,33 @@ namespace fpl {
 
 		fpl_api bool PollWindowEvent(Event &ev) {
 			bool result = false;
-			EventQueue_Internal *eventQueue = globalEventQueue_Internal;
+			EventQueue_Internal *eventQueue = global__EventQueue__Internal;
 			FPL_ASSERT(eventQueue != nullptr);
 			if (eventQueue->pushCount > 0 && (eventQueue->pollIndex < eventQueue->pushCount)) {
-				uint32_t eventIndex = atomic_fetch_add(&eventQueue->pollIndex, (uint32_t)1);
+				uint32_t eventIndex = atomics::AtomicAddU32(&eventQueue->pollIndex, 1);
 				ev = eventQueue->events[eventIndex];
 				result = true;
-			} else if (globalEventQueue_Internal->pushCount > 0) {
-				atomic_exchange(&eventQueue->pollIndex, (uint32_t)0);
-				atomic_exchange(&eventQueue->pushCount, (uint32_t)0);
+			} else if (global__EventQueue__Internal->pushCount > 0) {
+				atomics::AtomicExchangeU32(&eventQueue->pollIndex, 0);
+				atomics::AtomicExchangeU32(&eventQueue->pushCount, 0);
 			}
 			return result;
+		}
+
+		fpl_api char *GetClipboardAnsiText(char *dest, const uint32_t maxDestLen) {
+			return nullptr;
+		}
+
+		fpl_api wchar_t *GetClipboardWideText(wchar_t *dest, const uint32_t maxDestLen) {
+			return nullptr;
+		}
+
+		fpl_api bool SetClipboardText(const char *ansiSource) {
+			return true;
+		}
+
+		fpl_api bool SetClipboardText(const wchar_t *wideSource) {
+			return true;
 		}
 
 		fpl_api WindowSize GetWindowArea() {
@@ -4581,16 +4701,16 @@ namespace fpl {
 		}
 
 	}
-#endif // FPL_ENABLE_WINDOW
-	fpl_api bool InitPlatform(const InitFlags initFlags, const InitSettings & initSettings) {
-		LinuxState_Internal &linuxState = globalLinuxState_Internal;
+#endif // defined(FPL_ENABLE_WINDOW)
+	fpl_api bool InitPlatform(const InitFlags initFlags, const Settings &initSettings) {
+		LinuxState_Internal &linuxState = global__Linux__State_Internal;
 		FPL_ASSERT(!linuxState.isInitialized);
 
-#if FPL_ENABLE_WINDOW
+#if defined(FPL_ENABLE_WINDOW)
 
 		InitFlags usedInitFlags = initFlags;
-#	if FPL_ENABLE_OPENGL
-		if(usedInitFlags & InitFlags::VideoOpenGL) {
+#	if defined(FPL_SUPPORT_VIDEO_OPENGL)
+		if(usedInitFlags & InitFlags::Video) {
 			usedInitFlags |= InitFlags::Window;
 		}
 #	endif
@@ -4598,7 +4718,7 @@ namespace fpl {
 			window::LinuxInitWindow_Internal(linuxState, usedInitFlags, initSettings);
 		}
 
-#endif // FPL_ENABLE_WINDOW
+#endif // defined(FPL_ENABLE_WINDOW)
 	}
 
 	fpl_api void ReleasePlatform() {
