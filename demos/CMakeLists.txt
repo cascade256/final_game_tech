@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.0.0) #Not sure if this is accurate
 
+set(CMAKE_CXX_STANDARD 11)
+
 project (FPL_ImGui)
 add_executable(FPL_ImGui    FPL_ImGui/main.cpp
                             FPL_ImGui/dependencies/imgui/include/imgui/imgui.cpp
@@ -9,7 +11,7 @@ add_executable(FPL_ImGui    FPL_ImGui/main.cpp
 target_include_directories(FPL_ImGui PUBLIC ../ ./FPL_ImGui/dependencies/imgui/include)
 
 if(UNIX)
-    target_link_libraries(FPL_ImGui GL X11)
+    target_link_libraries(FPL_ImGui GL X11 m stdc++)
 elseif(WIN32)
     target_link_libraries(FPL_ImGui opengl32)
 endif()

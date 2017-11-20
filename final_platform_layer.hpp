@@ -374,12 +374,12 @@ SOFTWARE.
 //! Non-debug (Release) mode detected
 #		define FPL_RELEASE
 #	endif
+#elif defined(__clang__) //Check for clang before checking for LLVM, because __llvm__ is also defined for clang
+//! CLANG compiler detected
+#	define FPL_COMPILER_CLANG
 #elif defined(__llvm__)
 //! LLVM compiler detected
 #	define FPL_COMPILER_LLVM
-#elif defined(__clang__)
-//! CLANG compiler detected
-#	define FPL_COMPILER_CLANG
 #elif defined(__GNUC__) || defined(__GNUG__)
 //! GCC compiler detected
 #	define FPL_COMPILER_GCC
@@ -1734,7 +1734,7 @@ namespace fpl {
 			int64_t result = _InterlockedCompareExchange64((volatile long long *)dest, exchange, comparand);
 			return (result);
 		}
-	#elif defined(FPL_COMPILER_GCC)
+	#elif defined(FPL_COMPILER_GCC) || defined(FPL_COMPILER_CLANG)
 		fpl_api void AtomicReadFence() {
 
 		}
@@ -4650,15 +4650,16 @@ namespace fpl {
 			void *eventQueueMemory = memory::MemoryAlignedAllocate(eventQueueMemorySize, 16);
 
 			global__EventQueue__Internal = (EventQueue_Internal*)eventQueueMemory;
+			return true;
 		}
 
 
 		fpl_api bool WindowUpdate() {
-
+			return true;
 		}
 
 		fpl_api bool IsWindowRunning() {
-
+			return true;
 		}
 
 		fpl_api bool PollWindowEvent(Event &ev) {
@@ -4693,7 +4694,10 @@ namespace fpl {
 		}
 
 		fpl_api WindowSize GetWindowArea() {
-
+			WindowSize size;
+			size.width = 0;
+			size.height = 0;
+			return size;
 		}
 
 		fpl_api void SetWindowCursorEnabled(const bool value) {
@@ -4719,6 +4723,7 @@ namespace fpl {
 		}
 
 #endif // defined(FPL_ENABLE_WINDOW)
+		return true;
 	}
 
 	fpl_api void ReleasePlatform() {
